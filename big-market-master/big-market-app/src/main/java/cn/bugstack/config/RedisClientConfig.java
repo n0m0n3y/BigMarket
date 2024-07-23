@@ -22,8 +22,6 @@ import java.io.IOException;
 
 /**
  * Redis 客户端，使用 Redisson <a href="https://github.com/redisson/redisson">Redisson</a>
- *
- * @author Fuzhengwei bugstack.cn @小傅哥
  */
 @Configuration
 @EnableConfigurationProperties(RedisClientConfigProperties.class)
@@ -45,8 +43,7 @@ public class RedisClientConfig {
                 .setRetryAttempts(properties.getRetryAttempts())
                 .setRetryInterval(properties.getRetryInterval())
                 .setPingConnectionInterval(properties.getPingInterval())
-                .setKeepAlive(properties.isKeepAlive())
-        ;
+                .setKeepAlive(properties.isKeepAlive());
 
         return Redisson.create(config);
     }

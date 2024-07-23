@@ -16,9 +16,7 @@ import java.security.SecureRandom;
 import java.util.*;
 
 /**
- * @author Fuzhengwei bugstack.cn @小傅哥
  * @description 策略装配库(兵工厂)，负责初始化策略计算
- * @create 2023-12-23 10:02
  */
 @Slf4j
 @Service
@@ -35,12 +33,16 @@ public class StrategyArmoryDispatch implements IStrategyArmory, IStrategyDispatc
         return assembleLotteryStrategy(strategyId);
     }
 
+    /**
+     * 根据策略ID进行对策略概率的装配
+     */
     @Override
     public boolean assembleLotteryStrategy(Long strategyId) {
-        // 1. 查询策略配置
+        // 1. 查询策略配置（根据策略ID查询奖品有哪些（limit 10，奖品增多可修改）
         List<StrategyAwardEntity> strategyAwardEntities = repository.queryStrategyAwardList(strategyId);
 
-        // 2 缓存奖品库存【用于decr扣减库存使用】
+        // 2. 缓存奖品库存【用于decr扣减库存使用】
+        //缓存到Redis中：key为strategy_award_count_key_{strategyId}_{awardId}   value为awardCount
         for (StrategyAwardEntity strategyAward : strategyAwardEntities) {
             Integer awardId = strategyAward.getAwardId();
             Integer awardCount = strategyAward.getAwardCountSurplus();
@@ -78,6 +80,8 @@ public class StrategyArmoryDispatch implements IStrategyArmory, IStrategyDispatc
      * 2. 基于1找到的最小值，0.003 就可以计算出百分比、千分比的整数值。这里就是1000
      * 3. 那么「概率 * 1000」分别占比100个、20个、3个，总计是123个
      * 4. 后续的抽奖就用123作为随机数的范围值，生成的值100个都是0.1概率的奖品、20个是概率0.02的奖品、最后是3个是0.003的奖品。
+     * <p>
+     * 作用：根据奖品的概率生成奖品占位Map存放进入Redis中
      */
     private void assembleLotteryStrategy(String key, List<StrategyAwardEntity> strategyAwardEntities) {
         // 1. 获取最小概率值
@@ -86,10 +90,12 @@ public class StrategyArmoryDispatch implements IStrategyArmory, IStrategyDispatc
                 .min(BigDecimal::compareTo)
                 .orElse(BigDecimal.ZERO);
 
-        // 2. 循环计算找到概率范围值
+        // 2. 循环计算找到概率范围值(0.001就是1000)
         BigDecimal rateRange = BigDecimal.valueOf(convert(minAwardRate.doubleValue()));
 
-        // 3. 生成策略奖品概率查找表「这里指需要在list集合中，存放上对应的奖品占位即可，占位越多等于概率越高」
+        // 3. 生成策略奖品概率查找表
+        // 这里指需要在list集合中，存放上对应的奖品占位即可，占位越多等于概率越高
+        // list上存储的是awardId(奖品Id)
         List<Integer> strategyAwardSearchRateTables = new ArrayList<>(rateRange.intValue());
         for (StrategyAwardEntity strategyAward : strategyAwardEntities) {
             Integer awardId = strategyAward.getAwardId();
@@ -103,13 +109,19 @@ public class StrategyArmoryDispatch implements IStrategyArmory, IStrategyDispatc
         // 4. 对存储的奖品进行乱序操作
         Collections.shuffle(strategyAwardSearchRateTables);
 
-        // 5. 生成出Map集合，key值，对应的就是后续的概率值。通过概率来获得对应的奖品ID
+        // 5. 生成出Map集合(奖品占位Map)
+        // key : 随机值
+        // value : awardId 奖品Id
         Map<Integer, Integer> shuffleStrategyAwardSearchRateTable = new LinkedHashMap<>();
         for (int i = 0; i < strategyAwardSearchRateTables.size(); i++) {
             shuffleStrategyAwardSearchRateTable.put(i, strategyAwardSearchRateTables.get(i));
         }
 
-        // 6. 存放到 Redis
+        // 6. 存放范围最大值(用于范围最大值生成随机数)和抽奖时查询到奖品占位Map到Redis
+        // Redis的key : big_market_strategy_rate_range_key_{strategyId}
+        // Redis的value : 范围最大值(例如最小概率是0.001，那么范围最大值就是1000)
+        // Redis的Key : big_market_strategy_rate_table_key_{strategyId}
+        // Redis的Value : shuffleStrategyAwardSearchRateTable(奖品占位Map)
         repository.storeStrategyAwardSearchRateTable(key, shuffleStrategyAwardSearchRateTable.size(), shuffleStrategyAwardSearchRateTable);
     }
 

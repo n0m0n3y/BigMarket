@@ -15,9 +15,7 @@ import javax.annotation.Resource;
 import java.util.*;
 
 /**
- * @author Fuzhengwei bugstack.cn @小傅哥
  * @description 策略领域测试
- * @create 2023-12-23 11:33
  */
 @Slf4j
 @RunWith(SpringRunner.class)
@@ -33,9 +31,10 @@ public class StrategyTest {
     /**
      * 策略ID；100001L、100002L 装配的时候创建策略表写入到 Redis Map 中
      */
-    @Before
+    //@Before
+    @Test
     public void test_strategyArmory() {
-        boolean success = strategyArmory.assembleLotteryStrategy(100005L);
+        boolean success = strategyArmory.assembleLotteryStrategy(100002L);
         log.info("测试结果：{}", success);
     }
 
